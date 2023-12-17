@@ -1,5 +1,6 @@
 #include "rpf.hpp"
 #include "cpf.hpp"
+#include "mpf.hpp"
 
 // ----------------- Rcpp include  -----------------
 
@@ -25,4 +26,7 @@ RCPP_MODULE(mod_rpf)
       .derives<RandomPlantedForest>("RandomPlantedForest")
       .constructor<const NumericMatrix, const NumericMatrix, const String, const NumericVector>()
       .method("set_parameters", &ClassificationRPF::set_parameters);
+
+  class_<MultiplicativeRPF>("MultiplicativeRPF")
+    .derives<RandomPlantedForest>("RandomPlantedForest");
 }

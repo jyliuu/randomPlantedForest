@@ -56,10 +56,10 @@ public:
 private:
   friend class RandomPlantedForest;
   friend class ClassificationRPF;
+  friend class MultiplicativeRPF;
   std::set<int> split_dims; /**<  dimensions of the performed splits */
   std::vector<Leaf> leaves; /**<  leaves of tree containing intervals and approximating value */
   LeafGrid GridLeaves;
-
 };
 
 typedef std::map<std::set<int>, std::shared_ptr<DecisionTree>, setComp> TreeFamily;
