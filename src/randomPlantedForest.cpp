@@ -28,5 +28,6 @@ RCPP_MODULE(mod_rpf)
       .method("set_parameters", &ClassificationRPF::set_parameters);
 
   class_<MultiplicativeRPF>("MultiplicativeRPF")
-    .derives<RandomPlantedForest>("RandomPlantedForest");
+    .derives<RandomPlantedForest>("RandomPlantedForest")
+    .constructor<const NumericMatrix, const NumericMatrix, const NumericVector>();
 }
