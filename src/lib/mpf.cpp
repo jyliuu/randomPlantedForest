@@ -122,84 +122,84 @@ Split MultiplicativeRPF::calcOptimalSplitForLeaf(Leaf &leaf, const std::vector<s
   
   const std::vector<double> sample_points = getSamplePoints(X, leaf.individuals, k);
 
-        // go through samples
+  // go through samples
   for (size_t sample_pos = 0; sample_pos < sample_points.size(); ++sample_pos)
-        {
+  {
 
-          // get samplepoint
+    // get samplepoint
     double sample_point = sample_points[sample_pos];
 
-          // clear current split
-          {
-            curr_split.I_s.clear();
-            curr_split.I_b.clear();
-            curr_split.I_s.reserve(leaf.individuals.size());
-            curr_split.I_b.reserve(leaf.individuals.size());
-            curr_split.M_s = std::vector<double>(value_size, 0);
-            curr_split.M_b = std::vector<double>(value_size, 0);
-          }
+    // clear current split
+    {
+      curr_split.I_s.clear();
+      curr_split.I_b.clear();
+      curr_split.I_s.reserve(leaf.individuals.size());
+      curr_split.I_b.reserve(leaf.individuals.size());
+      curr_split.M_s = std::vector<double>(value_size, 0);
+      curr_split.M_b = std::vector<double>(value_size, 0);
+    }
 
-          // get samples greater/smaller than samplepoint
-          if (sample_pos == 0)
-          {
-            curr_split.sum_s = std::vector<double>(value_size, 0);
-            curr_split.sum_b = std::vector<double>(value_size, 0);
+    // get samples greater/smaller than samplepoint
+    if (sample_pos == 0)
+    {
+      curr_split.sum_s = std::vector<double>(value_size, 0);
+      curr_split.sum_b = std::vector<double>(value_size, 0);
 
-            for (int individual : leaf.individuals)
-            {
-              if (X[individual][k] < sample_point)
-              {
-                curr_split.I_s.push_back(individual);
-                curr_split.sum_s += Y[individual];
-              }
-              else
-              {
-                curr_split.I_b.push_back(individual);
-                curr_split.sum_b += Y[individual];
-              }
-            }
+      for (int individual : leaf.individuals)
+      {
+        if (X[individual][k] < sample_point)
+        {
+          curr_split.I_s.push_back(individual);
+          curr_split.sum_s += Y[individual];
+        }
+        else
+        {
+          curr_split.I_b.push_back(individual);
+          curr_split.sum_b += Y[individual];
+        }
+      }
 
-            tot_sum = curr_split.sum_s + curr_split.sum_b;
-          }
-          else
-          {
+      tot_sum = curr_split.sum_s + curr_split.sum_b;
+    }
+    else
+    {
 
-            for (int individual : leaf.individuals)
-            {
-              if (X[individual][k] < sample_point)
-              {
+      for (int individual : leaf.individuals)
+      {
+        if (X[individual][k] < sample_point)
+        {
           if (X[individual][k] >= sample_points[sample_pos - 1])
-                {
-                  curr_split.sum_s += Y[individual];
-                }
-                curr_split.I_s.push_back(individual);
-              }
-              else
-              {
-                curr_split.I_b.push_back(individual);
-              }
-            }
-
-            curr_split.sum_b = tot_sum - curr_split.sum_s;
-          }
-
-          // accumulate squared mean and get mean
-    // TODO: accumulate the sum of error of multiple leaves
-          L2_loss(curr_split);
-
-          // update split if squared sum is smaller
-    // TODO: save split coordinate and tree index only, not leaf
-          if (curr_split.min_sum < min_split.min_sum)
           {
-            min_split = curr_split;
-            min_split.leaf_index = &leaf;
-            min_split.split_coordinate = k + 1;
-            min_split.split_point = sample_point;
+            curr_split.sum_s += Y[individual];
           }
+          curr_split.I_s.push_back(individual);
+        }
+        else
+        {
+          curr_split.I_b.push_back(individual);
+        }
+      }
+
+      curr_split.sum_b = tot_sum - curr_split.sum_s;
+    }
+
+    // accumulate squared mean and get mean
+    // TODO: accumulate the sum of error of multiple leaves
+    L2_loss(curr_split);
+
+    // update split if squared sum is smaller
+    // TODO: save split coordinate and tree index only, not leaf
+    if (curr_split.min_sum < min_split.min_sum)
+    {
+      min_split = curr_split;
+      min_split.leaf_index = &leaf;
+      min_split.split_coordinate = k + 1;
+      min_split.split_point = sample_point;
+    }
   }
 
   return min_split;
-        }
+}
 
 std::vector<double> MultiplicativeRPF::getSamplePoints(const std::vector<std::vector<double>> &X, const std::vector<int> individuals, const int k) {
     const double leaf_size = n_leaves[k];
@@ -225,10 +225,74 @@ std::vector<double> MultiplicativeRPF::getSamplePoints(const std::vector<std::ve
   return samples_points;
 }
 
+Split MultiplicativeRPF::calcOptimalSplit2(const std::vector<std::vector<double>> &Y, const std::vector<std::vector<double>> &X,
+                                             std::multimap<int, std::shared_ptr<DecisionTree>> &possible_splits, TreeFamily &curr_family)
+{
+
+  Split curr_split, min_split;
+  curr_split.Y = &Y;
+  std::set<int> tree_dims;
+  std::vector<double> unique_samples;
+  double leaf_size, sample_point;
+
+  // sample possible splits
+  unsigned int n_candidates = ceil(t_try * possible_splits.size()); // number of candidates that will be considered
+  std::vector<int> split_candidates(possible_splits.size());
+  std::iota(split_candidates.begin(), split_candidates.end(), 0); // consecutive indices of possible candidates
+
+  if (!deterministic)
+  {
+    shuffle_vector(split_candidates.begin(), split_candidates.end()); // shuffle for random order
+  }
+
+  // consider a fraction of possible splits
+  for (int n = 0; n < n_candidates; ++n)
+  {
+    auto candidate = possible_splits.begin();
+    std::advance(candidate, split_candidates[n]); // get random split candidate without replacement
+    int k = candidate->first - 1;                     // split dim of current candidate, converted to index starting at 0
+    leaf_size = n_leaves[k];
+
+    // Test if splitting in the current tree w.r.t. the coordinate "k" is an element of candidate tree
+    tree_dims = candidate->second->split_dims;
+    tree_dims.erase(k + 1);
+
+    std::vector<std::shared_ptr<DecisionTree>> curr_trees;
+    if (tree_dims.size() == 0)
+      curr_trees.push_back(curr_family[std::set<int>{0}]);
+    if (curr_family.find(tree_dims) != curr_family.end())
+      curr_trees.push_back(curr_family[tree_dims]);
+    if (curr_family.find(candidate->second->split_dims) != curr_family.end())
+      curr_trees.push_back(curr_family[candidate->second->split_dims]);
+
+    // go through all trees in current family
+    for (auto &curr_tree : curr_trees)
+    {
+      
+      // skip if tree has no leaves
+      if (curr_tree->leaves.size() == 0)
+        continue;
+
+      // go through all leaves of current tree
+      // TODO: Swap this loop with go through samples loop
+      // Three cases: 1. refining 0 tree, refining single coord tree, refining tree wrt. other coord not in tree
+      // if (k < curr_tree->second->split_dims) 
+      // {
+      //   // proceed as normal 
+      // }
+      // else
+      // {
+      //     // refine wrt. new coordinate
+      // }
+      
+
+      // get sample points for k in tree and loop over them
+    }
   }
 
   return min_split;
 }
+
 
 void MultiplicativeRPF::create_tree_family(std::vector<Leaf> initial_leaves, size_t n)
 {
@@ -276,7 +340,7 @@ void MultiplicativeRPF::create_tree_family(std::vector<Leaf> initial_leaves, siz
   {
 
     // find optimal split
-    curr_split = calcOptimalSplit2(samples_Y, samples_X, possible_splits, curr_family);
+    curr_split = calcOptimalSplit(samples_Y, samples_X, possible_splits, curr_family);
 
     // continue only if we get a significant result
     if (!std::isinf(curr_split.min_sum))
@@ -333,6 +397,7 @@ void MultiplicativeRPF::create_tree_family(std::vector<Leaf> initial_leaves, siz
       }
 
       // construct new leaves
+      // TODO: Update all leaves in tree here, for each leaf, add a new leaf with the new intervals
       Leaf leaf_s, leaf_b;
       {
         leaf_s.individuals = curr_split.I_s;

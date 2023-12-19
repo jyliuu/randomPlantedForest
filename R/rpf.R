@@ -228,7 +228,7 @@ rpf_impl <- function(Y, X, mode = c("regression", "classification"),
       purify, deterministic, nthreads, cv, delta, epsilon
     ))
   } else if (mode == "regression") {
-    fit <- new(RandomPlantedForest, Y, X, c(
+    fit <- new(MultiplicativeRPF, Y, X, c(
       max_interaction, ntrees, splits, split_try, t_try,
       purify, deterministic, nthreads, cv
     ))

@@ -16,6 +16,8 @@ private:
   void fit() override;
   Split calcOptimalSplit(const std::vector<std::vector<double>> &Y, const std::vector<std::vector<double>> &X,
                          std::multimap<int, std::shared_ptr<DecisionTree>> &possible_splits, TreeFamily &curr_family) override;
+  Split calcOptimalSplit2(const std::vector<std::vector<double>> &Y, const std::vector<std::vector<double>> &X,
+                        std::multimap<int, std::shared_ptr<DecisionTree>> &possible_splits, TreeFamily &curr_family) override;
   Split calcOptimalSplitForLeaf(Leaf &leaf, const std::vector<std::vector<double>> &Y, const std::vector<std::vector<double>> &X, int k);
   std::vector<double> getSamplePoints(const std::vector<std::vector<double>> &X, const std::vector<int> individuals, int k);
 };
