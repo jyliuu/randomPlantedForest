@@ -93,45 +93,41 @@ Split MultiplicativeRPF::calcOptimalSplit(const std::vector<std::vector<double>>
         continue;
 
       // go through all leaves of current tree
+      // TODO: Swap this loop with go through samples loop
       for (auto &leaf : curr_tree->leaves)
       {
-
-        std::vector<double> tot_sum(value_size, 0);
-
-        // extract sample points according to individuals from X and Y
-        unique_samples = std::vector<double>(leaf.individuals.size());
-        for (unsigned int i = 0; i < leaf.individuals.size(); ++i)
+        curr_split = calcOptimalSplitForLeaf(leaf, Y, X, k);     
+        // update split if squared sum is smaller
+        // TODO: save split coordinate and tree index only, not leaf
+        if (curr_split.min_sum < min_split.min_sum)
         {
-          unique_samples[i] = X[leaf.individuals[i]][k];
+          min_split = curr_split;
+          min_split.tree_index = curr_tree;
         }
-        std::sort(unique_samples.begin(), unique_samples.end());
-        unique_samples.erase(std::unique(unique_samples.begin(), unique_samples.end()), unique_samples.end());
+      }
+    }
 
-        // check if number of sample points is within limit
-        if (unique_samples.size() < 2 * leaf_size)
-          continue;
+    ++n;
+  }
 
-        // consider split_try-number of samples
-        std::vector<int> samples;
-        if (deterministic)
-        { // sequential samples if deterministic
-          samples = std::vector<int>(std::min((int)unique_samples.size() - 1, 9));
-          std::iota(samples.begin(), samples.end(), 1);
-        }
-        else
-        { // randomly picked samples otherwise
-          samples = std::vector<int>(split_try);
-          for (size_t i = 0; i < samples.size(); ++i)
-            samples[i] = R::runif(leaf_size, unique_samples.size() - leaf_size);
-          std::sort(samples.begin(), samples.end());
-        }
+  return min_split;
+}
+
+Split MultiplicativeRPF::calcOptimalSplitForLeaf(Leaf &leaf, const std::vector<std::vector<double>> &Y, const std::vector<std::vector<double>> &X, const int k) {
+  Split curr_split, min_split;
+  const double leaf_size = n_leaves[k];
+
+  std::vector<double> tot_sum(value_size, 0);
+  // extract sample points according to individuals from X and Y
+  
+  const std::vector<double> sample_points = getSamplePoints(X, leaf.individuals, k);
 
         // go through samples
-        for (size_t sample_pos = 0; sample_pos < samples.size(); ++sample_pos)
+  for (size_t sample_pos = 0; sample_pos < sample_points.size(); ++sample_pos)
         {
 
           // get samplepoint
-          sample_point = unique_samples[samples[sample_pos]];
+    double sample_point = sample_points[sample_pos];
 
           // clear current split
           {
@@ -172,7 +168,7 @@ Split MultiplicativeRPF::calcOptimalSplit(const std::vector<std::vector<double>>
             {
               if (X[individual][k] < sample_point)
               {
-                if (X[individual][k] >= unique_samples[samples[sample_pos - 1]])
+          if (X[individual][k] >= sample_points[sample_pos - 1])
                 {
                   curr_split.sum_s += Y[individual];
                 }
@@ -188,22 +184,47 @@ Split MultiplicativeRPF::calcOptimalSplit(const std::vector<std::vector<double>>
           }
 
           // accumulate squared mean and get mean
+    // TODO: accumulate the sum of error of multiple leaves
           L2_loss(curr_split);
 
           // update split if squared sum is smaller
+    // TODO: save split coordinate and tree index only, not leaf
           if (curr_split.min_sum < min_split.min_sum)
           {
             min_split = curr_split;
-            min_split.tree_index = curr_tree;
             min_split.leaf_index = &leaf;
             min_split.split_coordinate = k + 1;
             min_split.split_point = sample_point;
           }
-        }
-      }
-    }
+  }
 
-    ++n;
+  return min_split;
+        }
+
+std::vector<double> MultiplicativeRPF::getSamplePoints(const std::vector<std::vector<double>> &X, const std::vector<int> individuals, const int k) {
+    const double leaf_size = n_leaves[k];
+
+  std::vector<double> unique_samples = std::vector<double>(individuals.size());
+  for (unsigned int i = 0; i < individuals.size(); ++i)
+  {
+    unique_samples[i] = X[individuals[i]][k];
+  }
+  std::sort(unique_samples.begin(), unique_samples.end());
+  unique_samples.erase(std::unique(unique_samples.begin(), unique_samples.end()), unique_samples.end());
+
+  // check if number of sample points is within limit
+  if (unique_samples.size() < 2 * leaf_size)
+    return std::vector<double>();
+
+  // consider split_try-number of samples
+  std::vector<double> samples_points = std::vector<double>(split_try);
+  for (size_t i = 0; i < samples_points.size(); ++i)
+    samples_points[i] = unique_samples[R::runif(leaf_size, unique_samples.size() - leaf_size)];
+  std::sort(samples_points.begin(), samples_points.end());
+
+  return samples_points;
+}
+
   }
 
   return min_split;
